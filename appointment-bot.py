@@ -1,7 +1,9 @@
+from logging import exception
 from selenium import webdriver
 from selenium.webdriver.support.ui import Select
 import time
-
+import webbrowser
+import pyautogui
 credentials = {
     'title':'',
     'name':'',
@@ -9,6 +11,13 @@ credentials = {
     'phone':'',
     'mail':'',
 }
+
+def sleep_for_a_while():
+    t = time.localtime()
+    current_time = time.strftime("%H:%M:%S", t)
+    print("Current Time:", current_time)
+    print('Going to sleep for 10 minutes...\n\n')
+    time.sleep(60*10) # retry after 10 minutes
 
 def button_next_month():
     driver.find_element_by_css_selector("[title='Go to the next month']").click()
@@ -23,7 +32,7 @@ def button_submit():
 
 
 def button_back():
-    driver.find_element_by_id('plhMain_btnSubmit').click()
+    driver.find_element_by_id('plhMain_btnBack').click()
 
 
 def select_box(id, text):
@@ -71,8 +80,13 @@ def calendar_page():
         print("Current Month:", current_month_name)
 
         message = str(driver.find_element_by_id('plhMain_lblMsg').text)
+        print("Message:", message)
+        if 'No date' in message:
+            break
+
         if 'Error' in message:
             if count_next_click == 1 and count_prev_click == 1:
+                button_back()
                 break
 
             if count_next_click == 0 and current_month_name in month_list[0:1]:
@@ -83,27 +97,34 @@ def calendar_page():
                 button_prev_month()
             pass
         else:
-
-            table_body = driver.find_element_by_xpath('//*[@id="plhMain_cldAppointment"]/tbody')
-            for row in table_body.find_elements_by_css_selector('tr'):
-                for cell in row.find_elements_by_tag_name('td'):
-                    print(cell.text, end = '')
-                    # Click to button to make appointment
-                print()
-
+            green_cell = driver.find_elements_by_class_name("OpenDateAllocated")
+            print("Available appointment found in ",  green_cell[0].text, "of", current_month_name)
+            if current_month_name == month_list[0] or (current_month_name == month_list[1] and int(green_cell[0].text)<14): # May or earlier then 14 of June
+                print("Clicked the new appointment found in ",  green_cell[0].text, "of", current_month_name)
+                green_cell[0].click() # Click the first item
+                webbrowser.open('D:\\Downloads\\alarm-sound-effects-modern-alarm-1.mp3')
+                slot = driver.find_element_by_id('plhMain_gvSlot_lnkTimeSlot_0')
+                slot.click()
+                print("Slot:",slot.text)
+                driver.switch_to.window(driver.window_handles[-1])
+                driver.switch_to.alert.accept()
+                
+                myScreenshot = pyautogui.screenshot()
+                myScreenshot.save(f'D:\\Downloads\\appointment_{slot.text}_{green_cell[0].text}_{current_month_name}.png')
+                is_success = True
+            break
         pass
 
     return is_success
 
-
 if __name__ == '__main__':
+    driver = webdriver.Chrome("D:\Downloads\chromedriver_win32 (1)\chromedriver.exe")
 
     while(True):
         t = time.localtime()
         current_time = time.strftime("%H:%M:%S", t)
         print("Current Time:", current_time)
 
-        driver = webdriver.Chrome("D:\Downloads\chromedriver_win32 (1)\chromedriver.exe")
         driver.get('https://www.netherlandsworldwide.nl/countries/turkey/travel/applying-for-a-long-stay-visa-mvv')
         link = driver.find_elements_by_class_name("external")[9].get_attribute('href')
         driver.get(link)
@@ -121,6 +142,16 @@ if __name__ == '__main__':
         select.select_by_visible_text('MVV – visa for long stay (>90 days)')
         button_submit()
 
+        try:
+            message = str(driver.find_element_by_id('plhMain_lblMsg').text)
+            no_date_error = 'No date(s) available for appointment.'
+            if message == no_date_error:
+                sleep_for_a_while()
+                continue
+        except:
+            sleep_for_a_while()
+            continue
+
         # 4 Credential Page
         credential_page()
 
@@ -132,6 +163,5 @@ if __name__ == '__main__':
             print(is_success)
             break
         else:
-            time.sleep(60*10)
-
+            sleep_for_a_while()
     pass
